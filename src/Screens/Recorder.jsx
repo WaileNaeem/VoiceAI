@@ -11,6 +11,7 @@ const Recorder = () => {
   const [recordTime, setRecordTime] = useState('00:00');
   const [playTime, setPlayTime] = useState('00:00');
   const [duration, setDuration] = useState('00:00');
+  const [receivedAudio, setReceivedAudio] = useState('');
 
   const onStartRecord = async () => {
     try {
@@ -31,7 +32,25 @@ const Recorder = () => {
         data: base64Audio,
         type: 'audio_input',
       };
-      socketService.emit('open', {dataToSend});
+      // socketService.emit('open', {dataToSend});
+      socketService.sendAudio(dataToSend);
+      // const path = `${RNFS.DocumentDirectoryPath}/audio.aac`;
+      // // Write the Base64 string to a file
+      // RNFS.writeFile(path, audio, 'base64')
+      //   .then(() => {
+      //     // Play the audio file
+      //     audioRecorderPlayer
+      //       .startPlayer(path)
+      //       .then(() => {
+      //         console.log('Audio started playing');
+      //       })
+      //       .catch(err => {
+      //         console.log('Error playing audio:', err);
+      //       });
+      //   })
+      //   .catch(err => {
+      //     console.error('Error writing file:', err);
+      //   });
     } catch (error) {
       console.log('Error stopping recorder:', error);
     }
@@ -75,6 +94,7 @@ const Recorder = () => {
   };
 
   useEffect(() => {
+    // Existing setup for record and playback listeners
     audioRecorderPlayer.addRecordBackListener(e =>
       setRecordTime(audioRecorderPlayer.mmssss(Math.floor(e.currentPosition))),
     );
@@ -83,10 +103,8 @@ const Recorder = () => {
       setDuration(audioRecorderPlayer.mmssss(Math.floor(e.duration)));
     });
 
+    // Listen to WebSocket events
     socketService.on('open', () => console.log('WebSocket connection opened'));
-    socketService.on('message', message =>
-      console.log('WebSocket message received:', message),
-    );
     socketService.on('close', (code, reason) =>
       console.log(
         `WebSocket connection closed with code ${code} and reason ${reason}`,
@@ -96,11 +114,66 @@ const Recorder = () => {
       console.error('WebSocket error:', error),
     );
 
+    // Listen to the 'message' event and process the received audio data
+    socketService.on('message', message => {
+      console.log('WebSocket message received:', message);
+      // Assuming the message is a JSON string containing audio data
+      const audioData = JSON.parse(message);
+      if (audioData.type === 'audio_output') {
+        // Convert Base64 audio data to a format that can be played back
+        const path = `${RNFS.DocumentDirectoryPath}/received_audio.aac`;
+        RNFS.writeFile(path, audioData.data, 'base64')
+          .then(() => {
+            // Play the received audio file
+            audioRecorderPlayer
+              .startPlayer(path)
+              .then(() => console.log('Received audio started playing'))
+              .catch(err => console.log('Error playing received audio:', err));
+          })
+          .catch(err =>
+            console.error('Error writing received audio file:', err),
+          );
+      }
+    });
+
+    // Cleanup function
     return () => {
       audioRecorderPlayer.removeRecordBackListener();
       audioRecorderPlayer.removePlayBackListener();
-      socketService.closeConnection();
+      // socketService.closeConnection();
     };
+  }, []);
+
+  useEffect(() => {
+    const handleAssistantEnd = message => {
+      console.log('Assistant session ended:', message);
+    };
+
+    const handleAssistantMessage = message => {
+      console.log('Assistant message:', message);
+    };
+
+    const handleAudioOutput = message => {
+      console.log('Audio output:', message);
+    };
+
+    const handleError = message => {
+      console.error('Error message:', message);
+    };
+
+    // Subscribe to message types
+    socketService.on('assistant_end', handleAssistantEnd);
+    socketService.on('assistant_message', handleAssistantMessage);
+    socketService.on('audio_output', handleAudioOutput);
+    socketService.on('error', handleError);
+
+    // return () => {
+    //   // Clean up listeners
+    //   socketService.off('assistant_end', handleAssistantEnd);
+    //   socketService.off('assistant_message', handleAssistantMessage);
+    //   socketService.off('audio_output', handleAudioOutput);
+    //   socketService.off('error', handleError);
+    // };
   }, []);
 
   return (

@@ -29,14 +29,7 @@ class WSService {
 
     this.socket.onerror = event => {
       console.error('WebSocket error:', event.message);
-      this.emit('error', event.message || 'Unknown Error');
-      if (retryCount > 0) {
-        console.log(`Retrying connection... Attempts left: ${retryCount - 1}`);
-        setTimeout(
-          () => this.initializeSocket(accessToken, retryCount - 1),
-          5000,
-        );
-      }
+      this.emit('error', event.message);
     };
   };
 
@@ -51,6 +44,28 @@ class WSService {
     const handlers = this.events[eventName];
     if (handlers) {
       handlers.forEach(handler => handler(data));
+    }
+  };
+
+  sendAudio = audioData => {
+    if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+      this.socket.send(JSON.stringify(audioData));
+      console.log('Audio data sent');
+    } else {
+      console.error('WebSocket is not open. Cannot send audio data.');
+    }
+  };
+
+  processMessage = data => {
+    try {
+      const message = JSON.parse(data);
+      if (message.type) {
+        this.emit(message.type, message);
+      } else {
+        console.error('Message type is undefined');
+      }
+    } catch (error) {
+      console.error('Error processing message:', error);
     }
   };
 

@@ -4,6 +4,7 @@ import {Pressable, StyleSheet, Text, View} from 'react-native';
 import base64 from 'react-native-base64';
 import socketService from '../socketServer';
 import {useNavigation} from '@react-navigation/native';
+import {API_KEY, SECRET_KEY} from '@env';
 
 const Home = () => {
   const [accessToken, setAccessToken] = useState('');
@@ -11,10 +12,7 @@ const Home = () => {
 
   const authenticate = async () => {
     try {
-      const apiKey = 'H82rBAENxJbfGXhvA8OKaGAVA0SfbFUfxjL1WyFpiCs3xtKN';
-      const clientSecret =
-        'IvUtGjqdKYZiVUfEfxGc4WCeTdf7pDnKNa4GINyrN88tNQtpmNNl1re8NAeOZpQC';
-      const authString = `${apiKey}:${clientSecret}`;
+      const authString = `${API_KEY}:${SECRET_KEY}`;
       const encoded = base64.encode(authString);
 
       const res = await fetch('https://api.hume.ai/oauth2-cc/token', {
@@ -39,12 +37,13 @@ const Home = () => {
   };
 
   const handleStartConversation = () => {
+    authenticate();
     navigation.navigate('Recorder');
   };
 
-  useEffect(() => {
-    authenticate();
-  }, []);
+  // useEffect(() => {
+  //   authenticate();
+  // }, []);
 
   return (
     <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
