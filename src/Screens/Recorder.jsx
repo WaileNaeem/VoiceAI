@@ -1,20 +1,20 @@
 import React, {useEffect, useState} from 'react';
-import {View, Text, TouchableOpacity, StyleSheet} from 'react-native';
+import {Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
 import AudioRecorderPlayer from 'react-native-audio-recorder-player';
-import socketService from '../socketServer';
-import RNFS from 'react-native-fs';
 import base64 from 'react-native-base64';
+import RNFS from 'react-native-fs';
+import socketService from '../socketServer';
 
 const audioRecorderPlayer = new AudioRecorderPlayer();
 
 const Recorder = () => {
-  const [recordTime, setRecordTime] = useState('00:00');
-  const [playTime, setPlayTime] = useState('00:00');
-  const [duration, setDuration] = useState('00:00');
-  const [receivedAudio, setReceivedAudio] = useState('');
-
+  const [messages, setMessages] = useState([]);
+  const [isAudioStarted, setIsAudioStarted] = useState(false);
+  // Add a state to keep track of the current audio file path
+  const [currentAudioPath, setCurrentAudioPath] = useState('');
   const onStartRecord = async () => {
     try {
+      setIsAudioStarted(true);
       await audioRecorderPlayer.startRecorder();
     } catch (error) {
       console.log('Error starting recorder:', error);
@@ -23,6 +23,7 @@ const Recorder = () => {
 
   const onStopRecord = async () => {
     try {
+      setIsAudioStarted(false);
       const audioFile = await audioRecorderPlayer.stopRecorder();
       const arrayBufferAudio = await convertMp4ToArrayBuffer(audioFile);
       const base64Audio = base64.encodeFromByteArray(
@@ -32,25 +33,7 @@ const Recorder = () => {
         data: base64Audio,
         type: 'audio_input',
       };
-      // socketService.emit('open', {dataToSend});
       socketService.sendAudio(dataToSend);
-      // const path = `${RNFS.DocumentDirectoryPath}/audio.aac`;
-      // // Write the Base64 string to a file
-      // RNFS.writeFile(path, audio, 'base64')
-      //   .then(() => {
-      //     // Play the audio file
-      //     audioRecorderPlayer
-      //       .startPlayer(path)
-      //       .then(() => {
-      //         console.log('Audio started playing');
-      //       })
-      //       .catch(err => {
-      //         console.log('Error playing audio:', err);
-      //       });
-      //   })
-      //   .catch(err => {
-      //     console.error('Error writing file:', err);
-      //   });
     } catch (error) {
       console.log('Error stopping recorder:', error);
     }
@@ -69,47 +52,14 @@ const Recorder = () => {
     }
   };
 
-  const onStartPlay = async () => {
-    try {
-      await audioRecorderPlayer.startPlayer();
-    } catch (error) {
-      console.log('Error starting playback:', error);
-    }
-  };
-
-  const onPausePlay = async () => {
-    try {
-      await audioRecorderPlayer.pausePlayer();
-    } catch (error) {
-      console.log('Error pausing playback:', error);
-    }
-  };
-
-  const onStopPlay = async () => {
-    try {
-      await audioRecorderPlayer.stopPlayer();
-    } catch (error) {
-      console.log('Error stopping playback:', error);
-    }
-  };
-
   useEffect(() => {
-    // Existing setup for record and playback listeners
-    audioRecorderPlayer.addRecordBackListener(e =>
-      setRecordTime(audioRecorderPlayer.mmssss(Math.floor(e.currentPosition))),
-    );
-    audioRecorderPlayer.addPlayBackListener(e => {
-      setPlayTime(audioRecorderPlayer.mmssss(Math.floor(e.currentPosition)));
-      setDuration(audioRecorderPlayer.mmssss(Math.floor(e.duration)));
-    });
-
     // Listen to WebSocket events
     socketService.on('open', () => console.log('WebSocket connection opened'));
-    socketService.on('close', (code, reason) =>
+    socketService.on('close', (code, reason) => {
       console.log(
         `WebSocket connection closed with code ${code} and reason ${reason}`,
-      ),
-    );
+      );
+    });
     socketService.on('error', error =>
       console.error('WebSocket error:', error),
     );
@@ -120,19 +70,50 @@ const Recorder = () => {
       // Assuming the message is a JSON string containing audio data
       const audioData = JSON.parse(message);
       if (audioData.type === 'audio_output') {
-        // Convert Base64 audio data to a format that can be played back
-        const path = `${RNFS.DocumentDirectoryPath}/received_audio.aac`;
+        console.log('====================================');
+        console.log('NEXT INCOMING AUDIO');
+        console.log('====================================');
+        const path = `${
+          RNFS.DocumentDirectoryPath
+        }/received_audio_${Date.now()}.aac`; // Use a unique file name
+        setCurrentAudioPath(path); // Update the current audio file path
         RNFS.writeFile(path, audioData.data, 'base64')
           .then(() => {
-            // Play the received audio file
+            // Stop any ongoing playback before starting a new one
             audioRecorderPlayer
-              .startPlayer(path)
-              .then(() => console.log('Received audio started playing'))
-              .catch(err => console.log('Error playing received audio:', err));
+              .stopPlayer()
+              .then(() => {
+                // Start playing the new audio file
+                audioRecorderPlayer
+                  .startPlayer(path)
+                  .then(() => console.log('Received audio started playing'))
+                  .catch(err =>
+                    console.log('Error playing received audio:', err),
+                  );
+              })
+              .catch(err => console.log('Error stopping player:', err));
           })
           .catch(err =>
             console.error('Error writing received audio file:', err),
           );
+      } else if (audioData.type === 'assistant_message') {
+        // Update messages state with the new message
+        setMessages(prevMessages => [
+          ...prevMessages,
+          {role: 'assistant', content: audioData.message.content},
+        ]);
+      } else if (audioData.type === 'user_message') {
+        // Update messages state with the new message
+        setMessages(prevMessages => [
+          ...prevMessages,
+          {role: 'user', content: audioData?.message?.content},
+        ]);
+      } else if (audioData.type === 'assistant_message') {
+        // Update messages state with the new message
+        setMessages(prevMessages => [
+          ...prevMessages,
+          {role: 'assistant', content: audioData.message.content},
+        ]);
       }
     });
 
@@ -166,37 +147,35 @@ const Recorder = () => {
     socketService.on('assistant_message', handleAssistantMessage);
     socketService.on('audio_output', handleAudioOutput);
     socketService.on('error', handleError);
-
-    // return () => {
-    //   // Clean up listeners
-    //   socketService.off('assistant_end', handleAssistantEnd);
-    //   socketService.off('assistant_message', handleAssistantMessage);
-    //   socketService.off('audio_output', handleAudioOutput);
-    //   socketService.off('error', handleError);
-    // };
   }, []);
 
   return (
     <View style={styles.container}>
-      <TouchableOpacity style={styles.button} onPress={onStartRecord}>
-        <Text style={styles.buttonText}>Start Recording</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.button} onPress={onStopRecord}>
-        <Text style={styles.buttonText}>Stop Recording</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.button} onPress={onStartPlay}>
-        <Text style={styles.buttonText}>Start Playback</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.button} onPress={onPausePlay}>
-        <Text style={styles.buttonText}>Pause Playback</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.button} onPress={onStopPlay}>
-        <Text style={styles.buttonText}>Stop Playback</Text>
-      </TouchableOpacity>
-
-      <Text>Record Time: {recordTime}</Text>
-      <Text>Play Time: {playTime}</Text>
-      <Text>Duration: {duration}</Text>
+      <ScrollView style={styles.messagesContainer}>
+        {messages.map((message, index) => (
+          <View
+            key={index}
+            style={[
+              styles.message,
+              message.role === 'assistant'
+                ? styles.assistantMessage
+                : styles.userMessage,
+            ]}>
+            <Text style={styles.messageText}>{message?.content}</Text>
+          </View>
+        ))}
+      </ScrollView>
+      <View style={styles.buttonContainer}>
+        {!isAudioStarted ? (
+          <Pressable style={styles.button} onPress={onStartRecord}>
+            <Text style={styles.buttonText}>Ask me Anything</Text>
+          </Pressable>
+        ) : (
+          <Pressable style={styles.button} onPress={onStopRecord}>
+            <Text style={styles.buttonText}>Stop</Text>
+          </Pressable>
+        )}
+      </View>
     </View>
   );
 };
@@ -204,20 +183,45 @@ const Recorder = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
     backgroundColor: '#fff',
+    justifyContent: 'space-between',
+    padding: 20,
   },
-  button: {
-    marginTop: 10,
+  messagesContainer: {
+    flex: 1,
+    paddingHorizontal: 10,
+  },
+  message: {
+    marginBottom: 10,
     padding: 10,
-    backgroundColor: '#007AFF',
     borderRadius: 5,
   },
-  buttonText: {
-    color: '#fff',
+  messageText: {
     fontSize: 16,
+  },
+  button: {
+    padding: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 50,
+    backgroundColor: 'black',
+  },
+  buttonText: {
+    color: 'white',
+    fontSize: 20,
     fontWeight: 'bold',
+  },
+  buttonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-evenly',
+  },
+  userMessage: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#f0f0f0',
+  },
+  assistantMessage: {
+    alignSelf: 'flex-end',
+    backgroundColor: '#e0e0ff',
   },
 });
 

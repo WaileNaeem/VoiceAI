@@ -2,6 +2,9 @@ class WSService {
   constructor() {
     this.socket = null;
     this.events = {};
+    this.reconnectAttempts = 0;
+    this.maxReconnectAttempts = 5; // Maximum number of reconnection attempts
+    this.reconnectInterval = 5000; // Interval between reconnection attempts in milliseconds
   }
 
   initializeSocket = (accessToken, retryCount = 3) => {
@@ -13,6 +16,7 @@ class WSService {
     this.socket.onopen = () => {
       console.log('WebSocket connection successfully opened.');
       this.emit('open');
+      this.reconnectAttempts = 0; // Reset reconnect attempts on successful connection
     };
 
     this.socket.onmessage = event => {
@@ -22,9 +26,26 @@ class WSService {
 
     this.socket.onclose = event => {
       console.log(
-        `WebSocket connection closed with code: ${event.code}, reason: ${event.reason}`,
+        `WebSocket connection closed with code: ${event.code}, reason: ${event}`,
       );
       this.emit('close', event.code, event.reason);
+      if (
+        event.code === 1006 &&
+        this.reconnectAttempts < this.maxReconnectAttempts
+      ) {
+        console.log(
+          `Attempting to reconnect... Attempt: ${this.reconnectAttempts + 1}`,
+        );
+        setTimeout(
+          () => this.initializeSocket(accessToken),
+          this.reconnectInterval,
+        );
+        this.reconnectAttempts++;
+      } else {
+        console.log(
+          'Max reconnection attempts reached. Not attempting to reconnect.',
+        );
+      }
     };
 
     this.socket.onerror = event => {
