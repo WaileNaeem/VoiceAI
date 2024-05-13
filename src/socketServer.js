@@ -7,7 +7,7 @@ class WSService {
     this.reconnectInterval = 5000; // Interval between reconnection attempts in milliseconds
   }
 
-  initializeSocket = (accessToken, retryCount = 3) => {
+  initializeSocket = accessToken => {
     const SOCKET_URL = `wss://api.hume.ai/v0/evi/chat?access_token=${accessToken}`;
     console.log(`Attempting to connect to WebSocket at: ${SOCKET_URL}`);
 
