@@ -1,10 +1,10 @@
 // Home.jsx
-import React, {useEffect, useState} from 'react';
+import {API_KEY, SECRET_KEY} from '@env';
+import {useNavigation} from '@react-navigation/native';
+import React, {useState} from 'react';
 import {Pressable, StyleSheet, Text, View} from 'react-native';
 import base64 from 'react-native-base64';
 import socketService from '../socketServer';
-import {useNavigation} from '@react-navigation/native';
-import {API_KEY, SECRET_KEY} from '@env';
 
 const Home = () => {
   const [accessToken, setAccessToken] = useState('');
@@ -27,8 +27,7 @@ const Home = () => {
       });
 
       const data = await res.json();
-      const accessToken = data.access_token;
-      console.log('🚀 ~ authenticate ~ accessToken:', accessToken);
+      const accessToken = data?.access_token;
       setAccessToken(accessToken);
       socketService.initializeSocket(accessToken);
     } catch (error) {
@@ -40,10 +39,6 @@ const Home = () => {
     authenticate();
     navigation.navigate('Recorder');
   };
-
-  // useEffect(() => {
-  //   authenticate();
-  // }, []);
 
   return (
     <View style={{flex: 1, justifyContent: 'center', alignItems: 'center'}}>
