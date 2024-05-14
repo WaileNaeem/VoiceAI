@@ -1,5 +1,12 @@
 import React, {useEffect, useState} from 'react';
-import {Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
+import {
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import AudioRecorderPlayer from 'react-native-audio-recorder-player';
 import base64 from 'react-native-base64';
 import RNFS from 'react-native-fs';
@@ -12,6 +19,7 @@ const Recorder = () => {
   const [isAudioStarted, setIsAudioStarted] = useState(false);
   // Add a state to keep track of the current audio file path
   const [currentAudioPath, setCurrentAudioPath] = useState('');
+  const navigation = useNavigation();
   const onStartRecord = async () => {
     try {
       setIsAudioStarted(true);
@@ -50,6 +58,10 @@ const Recorder = () => {
       console.error('Error converting MP4 to ArrayBuffer:', error);
       return null;
     }
+  };
+
+  const handleBack = () => {
+    navigation.goBack();
   };
 
   useEffect(() => {
@@ -151,6 +163,12 @@ const Recorder = () => {
 
   return (
     <View style={styles.container}>
+      <Pressable style={styles.backButton} onPress={handleBack}>
+        <Image
+          source={require('../images/backIcon.png')}
+          style={styles.backIcon}
+        />
+      </Pressable>
       <ScrollView style={styles.messagesContainer}>
         {messages.map((message, index) => (
           <View
@@ -222,6 +240,21 @@ const styles = StyleSheet.create({
   assistantMessage: {
     alignSelf: 'flex-end',
     backgroundColor: '#e0e0ff',
+  },
+  backIcon: {
+    height: 30,
+    width: 30,
+  },
+  backButton: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    height: 30,
+    width: 30,
+    borderWidth: 2,
+    borderColor: 'black',
+    borderRadius: 50,
+    padding: 20,
+    backgroundColor: 'black',
   },
 });
 
