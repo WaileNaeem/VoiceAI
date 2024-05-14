@@ -11,6 +11,7 @@ import AudioRecorderPlayer from 'react-native-audio-recorder-player';
 import base64 from 'react-native-base64';
 import RNFS from 'react-native-fs';
 import socketService from '../socketServer';
+import {useNavigation} from '@react-navigation/native';
 
 const audioRecorderPlayer = new AudioRecorderPlayer();
 
